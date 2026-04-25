@@ -94,10 +94,22 @@ export function SummaryCard({
         </div>
       </div>
 
+      <div className="mt-5 border-t border-slate-200 pt-5">
+        <h3 className="text-sm font-semibold text-ink">Evidence on this node</h3>
+        <div className="mt-3 space-y-2">
+          <MetaRows node={node} />
+          {node.evidence.slice(0, 4).map((item) => (
+            <div className="rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-700" key={item}>
+              {item}
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="mt-auto pt-5">
         <h3 className="text-sm font-semibold text-ink">Sources</h3>
         <div className="mt-3 flex flex-wrap gap-2">
-          {[sourceLabels[node.type], "Votes", "Bills", "Donors"].filter(Boolean).map((source) => (
+          {buildSources(node, summary).map((source) => (
             <span
               className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700"
               key={source}
@@ -110,6 +122,50 @@ export function SummaryCard({
       </div>
     </aside>
   );
+}
+
+function MetaRows({ node }: { node: CivicNode }) {
+  const rows = [
+    ["Source", node.meta.source],
+    ["Committee ID", node.meta.committeeId],
+    ["Candidate ID", node.meta.candidateId],
+    ["Designation", node.meta.designation],
+    ["Committee type", node.meta.committeeType],
+    ["URL", node.meta.url || node.meta.website]
+  ].filter(([, value]) => typeof value === "string" && value.trim());
+
+  if (!rows.length) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-700">
+      {rows.map(([label, value]) => (
+        <div className="flex gap-2" key={String(label)}>
+          <span className="min-w-[82px] font-semibold text-slate-500">{label}:</span>
+          <span className="break-all">{String(value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function buildSources(node: CivicNode, summary: SummaryResponse | null) {
+  const sources = new Set<string>();
+  sources.add(sourceLabels[node.type]);
+
+  if (node.meta.source) {
+    sources.add(String(node.meta.source));
+  }
+  if (node.meta.committeeId || node.meta.candidateId) {
+    sources.add("FEC filings");
+  }
+  if (node.type === "pac") {
+    sources.add("Committee records");
+  }
+  summary?.sources?.forEach((source) => sources.add(source));
+
+  return Array.from(sources).filter(Boolean).slice(0, 8);
 }
 
 function Section({ title, items }: { title: string; items: string[] }) {

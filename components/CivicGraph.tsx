@@ -21,25 +21,14 @@ type GraphNodeData = CivicNode & {
   selected: boolean;
 };
 
-const positions: Record<string, { x: number; y: number }> = {
-  corp_builderco: { x: -80, y: 40 },
-  pac_housing_growth: { x: 230, y: 40 },
-  rep_jane_doe: { x: 535, y: 150 },
-  committee_land_use: { x: 845, y: 42 },
-  bill_zoning_expansion: { x: 845, y: 278 },
-  issue_housing: { x: 1145, y: 278 },
-  prop_a: { x: 535, y: 410 },
-  pac_neighborhood: { x: 230, y: 410 }
-};
-
 const typeBands: Record<CivicNodeType, number> = {
-  corporation: 40,
-  pac: 320,
-  representative: 640,
-  committee: 980,
-  proposition: 1320,
-  bill: 1660,
-  issue: 2000
+  corporation: 0,
+  pac: 1,
+  representative: 2,
+  committee: 3,
+  proposition: 4,
+  bill: 5,
+  issue: 6
 };
 
 const nodeStyles: Record<CivicNodeType, { className: string; icon: React.ElementType; label: string }> = {
@@ -146,10 +135,11 @@ function CivicGraphCanvas({
   onSelectNode: (nodeId: string) => void;
 }) {
   const reactFlow = useReactFlow<Node<GraphNodeData>, Edge>();
+  const layout = buildLayeredLayout(nodes);
   const flowNodes: Node<GraphNodeData>[] = nodes.map((node) => ({
     id: node.id,
     type: "civicNode",
-    position: positions[node.id] ?? getAutoPosition(node, nodes),
+    position: layout[node.id] ?? { x: 0, y: 0 },
     data: {
       ...node,
       selected: node.id === selectedNodeId
@@ -202,13 +192,38 @@ function CivicGraphCanvas({
   );
 }
 
-function getAutoPosition(node: CivicNode, nodes: CivicNode[]) {
-  const sameTypeNodes = nodes.filter((item) => item.type === node.type);
-  const sameTypeIndex = sameTypeNodes.findIndex((item) => item.id === node.id);
-  const column = Math.floor(Math.max(0, sameTypeIndex) / 5);
-  const row = Math.max(0, sameTypeIndex) % 5;
-  const x = typeBands[node.type] ?? 300;
-  const y = 40 + row * 185 + column * 70;
+function buildLayeredLayout(nodes: CivicNode[]) {
+  const groups = new Map<number, CivicNode[]>();
 
-  return { x: x + column * 260, y };
+  nodes.forEach((node) => {
+    const layer = typeBands[node.type] ?? 2;
+    groups.set(layer, [...(groups.get(layer) ?? []), node]);
+  });
+
+  const layout: Record<string, { x: number; y: number }> = {};
+  const layerGap = 390;
+  const nodeGap = 215;
+  const columnGap = 285;
+  const maxRows = 4;
+
+  Array.from(groups.entries())
+    .sort(([a], [b]) => a - b)
+    .forEach(([layer, layerNodes]) => {
+      const sorted = [...layerNodes].sort((a, b) => a.label.localeCompare(b.label));
+      const rows = Math.min(maxRows, sorted.length);
+      const totalHeight = Math.max(0, rows - 1) * nodeGap;
+
+      sorted.forEach((node, index) => {
+        const column = Math.floor(index / maxRows);
+        const row = index % maxRows;
+        const stagger = column % 2 === 0 ? 0 : nodeGap / 2;
+
+        layout[node.id] = {
+          x: 40 + layer * layerGap + column * columnGap,
+          y: 60 + row * nodeGap + stagger - totalHeight / 2
+        };
+      });
+    });
+
+  return layout;
 }

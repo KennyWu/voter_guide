@@ -123,6 +123,7 @@ type FecCandidate = {
   name?: string;
   office_full?: string;
   party_full?: string;
+  principal_committees?: FecCommittee[];
 };
 
 type FecCommittee = {
@@ -714,6 +715,43 @@ async function getFecQueryData(query: string, representatives: CivicNode[]) {
         years: yearsForRange(4),
         evidence: `FEC candidate search matched "${query}".`
       });
+      candidate.principal_committees?.slice(0, 3).forEach((committee) => {
+        const committeeId = committee.committee_id ?? "";
+        const committeeName = committee.name ?? "";
+
+        if (!committeeId || !committeeName) {
+          return;
+        }
+
+        const committeeNodeId = `fec_principal_committee_${slug(committeeId)}`;
+        nodes.push({
+          id: committeeNodeId,
+          type: "pac",
+          label: committeeName,
+          years: yearsForRange(4),
+          meta: {
+            source: "FEC",
+            committeeId,
+            candidateId: candidate.candidate_id ?? "",
+            designation: committee.designation_full ?? "Principal campaign committee",
+            committeeType: committee.committee_type_full ?? "Candidate committee",
+            url: `https://api.open.fec.gov/v1/committee/${committeeId}/`
+          },
+          evidence: [
+            `FEC candidate search lists ${committeeName} (${committeeId}) as a principal committee for ${candidate.name}.`,
+            `Committee API source: https://api.open.fec.gov/v1/committee/${committeeId}/`,
+            "Use FEC receipts, disbursements, and independent expenditure endpoints to inspect donors and spending."
+          ]
+        });
+        edges.push({
+          id: `fec_principal_committee_edge_${committeeNodeId}_${nodeId}`,
+          source: committeeNodeId,
+          target: nodeId,
+          label: "principal committee",
+          years: yearsForRange(4),
+          evidence: `FEC lists ${committeeName} (${committeeId}) as a principal committee for ${candidate.name}.`
+        });
+      });
     });
 
     committeeResponse.results?.slice(0, 4).forEach((committee) => {
@@ -733,9 +771,14 @@ async function getFecQueryData(query: string, representatives: CivicNode[]) {
           source: "FEC",
           committeeId,
           designation: typeof committee.designation_full === "string" ? committee.designation_full : "",
-          committeeType: typeof committee.committee_type_full === "string" ? committee.committee_type_full : ""
+          committeeType: typeof committee.committee_type_full === "string" ? committee.committee_type_full : "",
+          url: `https://api.open.fec.gov/v1/committee/${committeeId}/`
         },
-        evidence: [`FEC committee search returned ${name} (${committeeId}) for "${query}".`]
+        evidence: [
+          `FEC committee search returned ${name} (${committeeId}) for "${query}".`,
+          `Committee API source: https://api.open.fec.gov/v1/committee/${committeeId}/`,
+          "Use FEC receipts, disbursements, and independent expenditure endpoints to verify funding relationships."
+        ]
       });
       edges.push({
         id: `fec_query_committee_edge_${nodeId}_${queryId}`,
